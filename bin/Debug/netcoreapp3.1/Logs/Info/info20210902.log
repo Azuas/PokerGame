@@ -1,0 +1,8 @@
+2021-09-02 09:31:59,463 [1] INFO  Microsoft.Hosting.Lifetime - Now listening on: https://localhost:5001
+2021-09-02 09:31:59,474 [1] INFO  Microsoft.Hosting.Lifetime - Now listening on: http://localhost:5000
+2021-09-02 09:31:59,527 [1] INFO  Microsoft.Hosting.Lifetime - Application started. Press Ctrl+C to shut down.
+2021-09-02 09:31:59,529 [1] INFO  Microsoft.Hosting.Lifetime - Hosting environment: Development
+2021-09-02 09:31:59,530 [1] INFO  Microsoft.Hosting.Lifetime - Content root path: D:\Project\PokerGame
+2021-09-02 09:32:05,653 [10] INFO  PokerGame.Controllers.WebSocketsController - Message received from Client
+2021-09-02 09:32:08,244 [10] INFO  PokerGame.Controllers.WebSocketsController - Message received from Client
+2021-09-02 09:32:08,247 [10] INFO  PokerGame.Controllers.WebSocketsController - WebSocket connection closed
