@@ -18,6 +18,7 @@ namespace PokerGame.Controllers
     public class WebSocketsController : Controller
     {
         private readonly ILogger<WebSocketsController> _logger;
+        private static object _lockObj = new object();
 
         /// <summary>
         /// 玩家列表
@@ -25,6 +26,7 @@ namespace PokerGame.Controllers
         private static List<Player> PlayerList = new List<Player>();
 
         private static int[] PokerList = new int[] { 3, 5, 7 };
+
 
         public WebSocketsController(ILogger<WebSocketsController> logger)
         {
@@ -189,7 +191,7 @@ namespace PokerGame.Controllers
                 ServiceMessage<string> otherMessage = null;
                 Player otherPlayer = null;
 
-                lock (this)
+                lock (_lockObj)
                 {
                     var roomPlayers = PlayerList.Where(w => w.RoomNo == roomNo).ToList();
 
