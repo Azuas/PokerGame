@@ -1,0 +1,315 @@
+﻿@{
+    ViewData["Title"] = "Game";
+}
+
+
+<div class="alert alert-success alert-dismissible fade show">
+    <strong>恭喜你，你赢了!</strong>
+</div>
+<div class="alert alert-warning alert-dismissible fade show">
+    <strong>运气不好，你输了</strong>
+</div>
+<div class="alert alert-info alert-dismissible fade show">
+    <strong>真巧，打平了</strong>
+</div>
+<div class="row">
+
+    <div id="room-area" class="col-sm-12">
+        <div class="card">
+            <div class="card-header">准备游戏</div>
+            <div class="card-body">
+                <form>
+                    <div class="form-group">
+                        <label for="name">匹配房间</label>
+                        <input id="room-no" type="number" class="form-control" placeholder="请输入4位数字房间号" maxlength="4">
+                    </div>
+                    <button id="btn-room" type="button" class="btn btn-primary">确定</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-area" class="col-sm-12 hide">
+        <div class="card bg-info text-white">
+            <div class="card-header">房间号-</div>
+            <div class="card-body">
+                <form>
+                    <div class="form-group">
+                        <label for="name">抽取数量</label>
+                        <input id="setp" type="number" class="form-control" placeholder="输入1位正整数" maxlength="1">
+                    </div>
+                    <button id="btn-step" type="button" class="btn btn-primary">确定</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-area" class="col-sm-12 pt-3">
+        <div class="card">
+            <div class="card-header">消息</div>
+            <div class="card-body">
+                <textarea class="form-control" id="message" rows="5"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+
+    <script>
+        var ws;
+        //是否需要重新连接
+        var lockReconnect = false;
+        var wsUrl;
+        var showWait = false;
+
+        //初始化事件
+        window.onload = function () {
+            var scheme = document.location.protocol == "https:" ? "wss" : "ws";
+            var port = document.location.port ? (":" + document.location.port) : "";
+            var pathname = document.location.pathname == "/" ? "" : document.location.pathname;
+            wsUrl = scheme + "://" + document.location.hostname + pathname + port + "/ws" ;
+            CreateWebSocket(wsUrl);
+            $("#game-area").hide();
+            $(".alert").hide();
+        }
+
+        //创建房间事件
+        $("#btn-room").on("click", function () {
+            $(this).attr("disabled", "disabled");
+            var roomNo = $("#room-no").val();
+            if (!roomNo) {
+                alert("请输入房间号");
+                $(this).removeAttr("disabled");
+                return;
+            } else if (!/^\d{4}$/.test(roomNo)) {
+                alert("请输入4位数字房间号");
+                $(this).removeAttr("disabled");
+                return;
+            }
+
+            ws.send(clientMsg("inroom", "", roomNo));
+        });
+
+        //抽取事件
+        $("#btn-step").on("click", function () {
+            $(this).attr("disabled", "disabled");
+            var step = $("#setp").val();
+            if (!step) {
+                alert("请输入数量");
+                $(this).removeAttr("disabled");
+                return;
+            } else if (!/^\d{1}$/.test(step)) {
+                alert("请输入1位数字");
+                $(this).removeAttr("disabled");
+                return;
+            }
+
+            ws.send(clientMsg("step", "", step));
+        })
+
+
+        //创建websocket
+        function CreateWebSocket(url) {
+            try {
+                wsUrl = url;
+                ws = new WebSocket(url);
+                initEventHandle();
+            } catch (e) {
+                Reconnect(url);
+            }
+        }
+
+
+        //封装websocket的接口函数
+        function initEventHandle() {
+            ws.onclose = function () {
+                showMessage("连接关闭");
+                Reconnect(wsUrl);
+            }
+
+            ws.onerror = function () {
+                showMessage("传输异常");
+                Reconnect(wsUrl);
+            }
+
+            ws.onopen = function () {
+                showMessage("连接成功...");
+                //心跳检测
+                heartCheck.reset().start();
+            }
+
+            //接收到服务端消息
+            ws.onmessage = function (event) {
+                //showMessage(event.data);
+                var serverMessage = JSON.parse(event.data);
+                if (serverMessage) {
+
+                    //执行响应方法
+                    if (action[serverMessage.type]) {
+                        action[serverMessage.type].call(this, serverMessage);
+                    }
+
+                    //消息
+                    if (serverMessage.message) {
+                        showMessage(serverMessage.message)
+                    }
+                }
+
+            }
+        }
+
+        //响应方法
+        var action = {
+            inroom: function (serverMessage) {//创建房间
+                //-2.房间已满 -1.房间号错误  1.创建房间 2.第二个玩家
+                showWait = false;
+                if (serverMessage.code == 2) {
+                    action.readyGame(serverMessage.data);
+                } else if (serverMessage.code == 1) {
+                    showWait = true;
+                } else {
+                    $("#btn-room").removeAttr("disabled");
+                }
+            },
+            step: function (serverMessage) {//抽取事件
+                showWait = false;
+                if (serverMessage.code == -3) {
+                    //频繁输入 不处理
+                } else if (serverMessage.code == -2) {
+                    //找不到用户 重新开始
+                    action.endGame();
+                } else if (serverMessage.code == -1) {
+                    //数量有误 重新输入
+                    $("#btn-step").removeAttr("disabled");
+                } else if (serverMessage.code == 1) {
+                    //等待对方输入
+                    showWait = true;
+                } else if (serverMessage.code == 2) {
+                    //都大于0
+                    $("#btn-step").removeAttr("disabled");
+                } else if (serverMessage.code == 3) {
+                    //赢了0 重新开始
+                    action.endGame();
+                    $(".alert").hide();
+                    $(".alert-success").fadeIn();
+                } else if (serverMessage.code == 4) {
+                    //输了 重新开始
+                    action.endGame();
+                    $(".alert").hide();
+                    $(".alert-warning").fadeIn();
+                } else if (serverMessage.code == 5) {
+                    //平了 重新开始
+                    action.endGame();
+                    $(".alert").hide();
+                    $(".alert-info").fadeIn();
+                }
+            },
+            offline: function () {
+                //离线 重新开始
+                action.endGame();
+            },
+            heartbeat: function (serverMessage) {//心跳检测
+                if (showWait) {//显示等待 第一行加.
+                    funShowWait();
+                }
+                heartCheck.reset().start();
+            },
+            readyGame: function (roomNo) {
+                $(".alert").hide();
+                $("#game-area .card-header").html("房间号-" + roomNo);
+                $("#btn-step").removeAttr("disabled");
+                $("#room-area").hide();
+                $("#game-area").show();
+            },
+            endGame: function () {
+                $("#btn-room").removeAttr("disabled");
+                $("#room-area").show();
+                $("#game-area").hide();
+            }
+        }
+
+        //重连
+        function Reconnect(url) {
+            if (lockReconnect) return;
+            lockReconnect = true;
+            //没连接上会继续连接，设置延迟避免请求过多
+            setTimeout(function () {
+                showMessage("尝试重新连接..." + new Date().format("yyyy-MM-dd hh:mm:ss"));
+                CreateWebSocket(url);
+                lockReconnect = false;
+            }, 5000);
+        }
+
+        //js格式化日期,调用的时候直接new Date().format("yyyy-MM-dd hh:mm:ss")
+        Date.prototype.format = function (fmt) {
+            var o = {
+                "M+": this.getMonth() + 1,//月份
+                "d+": this.getDate(),//日
+                "h+": this.getHours(),//小时
+                "m+": this.getMinutes(),//分钟
+                "s+": this.getSeconds(),//秒
+                "q+": Math.floor((this.getMonth() + 3 / 3)),//季度
+                "S+": this.getMilliseconds()//毫秒
+            }
+            if (/(y+)/.test(fmt)) {
+                fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+            }
+            for (var k in o) {
+                if (new RegExp("(" + k + ")").test(fmt)) {
+                    fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : ("00" + o[k]).substr(("" + o[k]).length));
+                }
+            }
+            return fmt;
+        }
+
+        //心跳设置
+        var heartCheck = {
+            timeout: 5000,
+            timeoutObj: null,
+            serverTimeoutObj: null,
+            reset: function () {
+                clearTimeout(this.timeoutObj);
+                clearTimeout(this.serverTimeoutObj);
+                return this;
+            },
+            start: function () {
+                var self = this;
+                this.timeoutObj = setTimeout(function () {
+                    //发送一条心跳，后台接收发哦后返回一个心跳消息
+                    //onmessage拿到消息就说明连接正常
+                    ws.send(clientMsg("heartbeat", "", { date: new Date().format("yyyy-MM-dd hh:mm:ss") }));
+                    //console.log("Client request heartbeat:" + new Date().format("yyyy-MM-dd hh:mm:ss"));
+                    self.serverTimeoutObj = setTimeout(function () {
+                        //如果超过一定时间还没重置，说明后端主动断开了
+                        ws.close();
+                        //如果onclose会执行reconnect，我们执行ws.close()就行了
+                        //如果直接执行reconnect会触发onclose导致重连两次
+                    }, self.timeout)
+                }, this.timeout)
+            }
+        }
+
+        //显示消息 显示5条消息
+        function showMessage(msg) {
+            var textMsg = $("#message").val();
+            if (textMsg.split("\n").length >= 5) {
+                textMsg = textMsg.split("\n").slice(0, 4).join("\n");
+            }
+            $("#message").val(msg + '\n' + textMsg);
+        }
+
+        //显示等待 第一行加.
+        function funShowWait() {
+            var textMsg = $("#message").val();
+            textMsg = textMsg.split("\n")[0] + ".\n" + textMsg.split("\n").slice(1, 4).join("\n");
+            $("#message").val(textMsg);
+        }
+
+        //获取客户端字符串
+        function clientMsg(type, message, data) {
+            return JSON.stringify({ "type": type, "message": message, "data": data });
+        }
+
+    </script>
+}

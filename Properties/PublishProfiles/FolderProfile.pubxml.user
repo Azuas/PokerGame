@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+https://go.microsoft.com/fwlink/?LinkID=208121. 
+-->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <_PublishTargetUrl>D:\Project\PokerGame\bin\Release\net5.0\publish\</_PublishTargetUrl>
+    <History>True|2021-09-02T01:06:13.4394912Z;True|2021-09-02T00:30:37.0111398+08:00;True|2021-09-02T00:25:47.8920646+08:00;True|2021-09-02T00:08:36.8719459+08:00;True|2021-09-02T00:01:49.2947148+08:00;False|2021-09-02T00:00:23.7817732+08:00;True|2021-09-01T23:58:41.2482650+08:00;True|2021-09-01T23:54:20.6138154+08:00;</History>
+  </PropertyGroup>
+</Project>
